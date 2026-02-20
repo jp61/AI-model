@@ -1,2 +1,2 @@
 # AI-model
-train and use AI model in real application, python, javacrtip, typescript
+train and use AI model in real application, python, javascript, typescript
