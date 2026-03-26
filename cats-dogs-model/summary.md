@@ -2,7 +2,7 @@
 
 What we produced
 - TFJS artifacts: `web_demo/tfjs_model/` (contains `model.json` and weight shards).
-- Web demo: `web_demo/index.html` and `web_demo/main.js` (preprocess uses IMG_SIZE=150).
+- Web demo: `web_demo/index.html`, `web_demo/style.css`, and `web_demo/app.js` (preprocess uses IMG_SIZE=150).
 - Conversion helper: `convert_tfjs.py` (custom writer to avoid CLI import issues).
 - Conversion docs: `README_TFJS.md`.
 
@@ -21,7 +21,7 @@ Steps we followed (concise)
 6. Ran the custom conversion with the Python 3.11 venv:
    - `venv_tfjs_311/bin/python convert_tfjs.py`
    - Output written to `web_demo/tfjs_model/` (model.json + `group*-shard*.bin` files).
-7. Added a small browser demo (`web_demo/index.html`, `web_demo/main.js`) that loads `web_demo/tfjs_model/model.json` and performs inference.
+7. Added a browser demo (`web_demo/index.html`, `web_demo/style.css`, `web_demo/app.js`) that loads `web_demo/tfjs_model/model.json` and performs inference.
 
 How to run the demo locally
 1. Serve the project root so the browser can fetch model files:
@@ -49,7 +49,7 @@ docker run --rm -v "$PWD":/work -w /work python:3.11-bullseye \
 ```
 
 Notes and next steps
-- The demo expects the model to output a single probability (shape [1,1]) — if your model output differs, update `web_demo/main.js` accordingly.
+- The demo expects the model to output a single probability (shape [1,1]) — if your model output differs, update `web_demo/app.js` accordingly.
 - Preprocessing in the demo uses division by 255 and resize to 150×150 to match training code (`predict.py`).
 - If you want, I can:
   - run a headless test inference on a sample image, or
