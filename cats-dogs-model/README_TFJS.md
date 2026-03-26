@@ -42,4 +42,4 @@ python3 -m http.server 8000
 
 Notes:
 - The demo expects the TFJS model to output a single probability (shape [1,1]) like the original Keras model.
-- If your Keras model uses a different output shape or preprocessing, update `web_demo/main.js` accordingly.
+- If your Keras model uses a different output shape or preprocessing, update `web_demo/app.js` accordingly.
