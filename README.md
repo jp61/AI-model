@@ -25,7 +25,7 @@ pip install .
 ### 1. Train the model
 
 ```bash
-cd cats-dogs-model
+cd src
 python train.py
 ```
 
@@ -33,7 +33,7 @@ This downloads the `cats_vs_dogs` dataset, trains a CNN for 10 epochs, and saves
 
 ### 2. Run Python predictions (optional)
 
-Place test images in `cats-dogs-model/images/` and run:
+Place test images in `src/images/` and run:
 
 ```bash
 python predict.py
@@ -59,7 +59,7 @@ Open http://localhost:8000 in your browser. Drag and drop an image (or click to 
 ## Project structure
 
 ```
-cats-dogs-model/
+src/
   train.py              # Train the CNN
   predict.py            # Python inference on local images
   convert_to_tfjs.py    # Convert Keras model to TF.js format
