@@ -5,8 +5,9 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IMG_SIZE = 150
-IMAGES_DIR = "images"  # priečinok s obrázkami
+IMAGES_DIR = os.path.join(SCRIPT_DIR, "images")
 
 def load_and_preprocess(img_path):
     img = image.load_img(img_path, target_size=(IMG_SIZE, IMG_SIZE))
@@ -16,7 +17,7 @@ def load_and_preprocess(img_path):
     return img_array
 
 # načítanie modelu
-model = keras.models.load_model("cats_dogs_model.keras")
+model = keras.models.load_model(os.path.join(SCRIPT_DIR, "cats_dogs_model.keras"))
 
 # zisti všetky obrázky v priečinku
 img_files = [f for f in os.listdir(IMAGES_DIR) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]

@@ -1,5 +1,8 @@
+import os
 import tensorflow as tf
 import tensorflow_datasets as tfds
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- Load dataset ---
 (ds_train, ds_val), ds_info = tfds.load(
@@ -59,6 +62,6 @@ history = model.fit(
 
 
 model.build(input_shape=(None, 150, 150, 3))
-model.save("cats_dogs_model.h5")
-model.save("cats_dogs_model.keras")    # nový Keras native formát
+model.save(os.path.join(SCRIPT_DIR, "cats_dogs_model.h5"))
+model.save(os.path.join(SCRIPT_DIR, "cats_dogs_model.keras"))
 print("Model uložený ako .h5 aj .keras ✅")
