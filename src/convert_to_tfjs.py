@@ -1,5 +1,5 @@
 """Convert trained Keras model to TensorFlow.js Layers format.
-
+    
 Produces model.json + weight shard .bin files that tf.loadLayersModel() can load.
 Does NOT depend on the tensorflowjs package (which has broken transitive deps).
 Instead, it reads the trained model's weights and builds the TF.js-compatible
