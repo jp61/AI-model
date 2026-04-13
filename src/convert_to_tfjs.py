@@ -1,22 +1,23 @@
-"""Convert trained Keras model to TensorFlow.js Layers format.
-    
-Produces model.json + weight shard .bin files that tf.loadLayersModel() can load.
-Does NOT depend on the tensorflowjs package (which has broken transitive deps).
-Instead, it reads the trained model's weights and builds the TF.js-compatible
-model.json in Keras 2 format directly.
+"""
+Convert trained Keras model (.keras) to TensorFlow.js Layers format.
+
+Produces:
+1. model.json -> The structural "blueprint" of the model.
+2. .bin files -> Binary shards containing the actual trained weights (knowledge).
+These can be loaded in JS using tf.loadLayersModel().
 """
 
 import json
 import os
 import struct
-
 import numpy as np
 import tensorflow as tf
 
+# Define paths and shard size
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(SCRIPT_DIR, "cats_dogs_model.keras")
 OUT_DIR = os.path.join(SCRIPT_DIR, "web_demo", "tfjs_model")
-SHARD_SIZE = 4 * 1024 * 1024  # 4 MB per shard
+SHARD_SIZE = 4 * 1024 * 1024  # 4 MB per shard (standard for web delivery)
 
 
 def build_tfjs_topology(model):
@@ -26,15 +27,16 @@ def build_tfjs_topology(model):
         return {"class_name": name, "config": {}}
 
     layers_json = []
+    # Iterate through all layers (Conv2D, MaxPooling, Dense, etc.)
     for i, layer in enumerate(model.layers):
         cfg = layer.get_config()
         ltype = type(layer).__name__
 
-        # Flatten dtype to string if it's a dict (Keras 3 DTypePolicy)
+        # Flatten dtype to string (Keras 3 compatibility fix)
         if isinstance(cfg.get("dtype"), dict):
             cfg["dtype"] = cfg["dtype"].get("config", {}).get("name", "float32")
 
-        # Flatten initializer objects: strip module/registered_name (Keras 3 keys)
+        # Clean up initializer objects for the browser
         for key in list(cfg.keys()):
             val = cfg[key]
             if isinstance(val, dict) and "module" in val:
@@ -43,16 +45,16 @@ def build_tfjs_topology(model):
                     "config": val.get("config", {}),
                 }
 
-        # Remove Keras 3 only keys
+        # Remove Keras 3 exclusive keys that TF.js doesn't recognize
         cfg.pop("quantization_config", None)
 
-        # Skip InputLayer (Keras 3 adds explicit InputLayer to Sequential)
+        # Skip InputLayer (TF.js defines inputs within the first real layer)
         if ltype == "InputLayer":
             continue
 
-        # Add batch_input_shape to the first real layer
+        # Add batch_input_shape to the first layer so the browser knows the input size
         if len(layers_json) == 0:
-            input_shape = model.input_shape  # (None, 150, 150, 3)
+            input_shape = model.input_shape  # e.g., (None, 150, 150, 3)
             cfg["batch_input_shape"] = list(input_shape)
 
         layers_json.append({"class_name": ltype, "config": cfg})
@@ -69,17 +71,16 @@ def build_tfjs_topology(model):
 
 
 def serialize_weights(model, out_dir, shard_size):
-    """Extract model weights and write as binary shards."""
+    """Extract model weights and write them as binary shard files."""
 
-    weights_entries = []
-    raw_bytes = bytearray()
+    weights_entries = [] # List of weight metadata (names, shapes, types)
+    raw_bytes = bytearray() # Buffer for the actual binary data
 
     for layer in model.layers:
         for w in layer.weights:
             arr = w.numpy()
-            # TF.js expects: layer_name/variable_name (e.g. conv2d/kernel)
-            # Keras 3 w.name is just "kernel"/"bias", so prefix with layer name
-            var_name = w.name.split(":")[ 0]  # strip ":0" if present
+            # Format the name for TF.js (e.g., conv2d/kernel)
+            var_name = w.name.split(":")[0]  
             name = f"{layer.name}/{var_name}"
 
             weights_entries.append({
@@ -87,9 +88,10 @@ def serialize_weights(model, out_dir, shard_size):
                 "shape": list(arr.shape),
                 "dtype": "float32",
             })
+            # Convert numbers to raw binary bytes
             raw_bytes.extend(arr.astype(np.float32).tobytes())
 
-    # Split into shards
+    # Split the large binary chunk into smaller 4MB files (shards)
     total = len(raw_bytes)
     num_shards = max(1, (total + shard_size - 1) // shard_size)
     paths = []
@@ -102,24 +104,26 @@ def serialize_weights(model, out_dir, shard_size):
             f.write(raw_bytes[start:end])
         paths.append(fname)
 
+    # The manifest links the binary files back to the JSON structure
     manifest = [{"paths": paths, "weights": weights_entries}]
     return manifest
 
 
 def main():
     print(f"Loading model from {MODEL_PATH}...")
+    # Load your trained Python model
     model = tf.keras.models.load_model(MODEL_PATH)
     model.summary()
 
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # Build topology
+    # Step 1: Build the architectural blueprint (topology)
     topology = build_tfjs_topology(model)
 
-    # Serialize weights
+    # Step 2: Save the "knowledge" (weights) as binary shards
     manifest = serialize_weights(model, OUT_DIR, SHARD_SIZE)
 
-    # Write model.json
+    # Step 3: Combine everything into the final model.json
     model_json = {
         "format": "layers-model",
         "generatedBy": f"keras v{tf.keras.__version__}",
@@ -132,7 +136,7 @@ def main():
     with open(model_json_path, "w") as f:
         json.dump(model_json, f)
 
-    # Report
+    # Final report on export size
     total_bytes = sum(
         os.path.getsize(os.path.join(OUT_DIR, p))
         for p in manifest[0]["paths"]
