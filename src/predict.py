@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IMG_SIZE = 150 # This must match the size used during model training
 IMAGES_DIR = os.path.join(SCRIPT_DIR, "images") # Folder containing your test photos
+# MODEL_FILENAME = "cats_dogs_model.keras" # model file name
+MODEL_FILENAME = "cats_dogs_model_fine_tuned.keras" # Fine-tuned model file name
 
 def load_and_preprocess(img_path):
     """
@@ -26,7 +28,7 @@ def load_and_preprocess(img_path):
     return img_array
 
 # Load the pre-trained model from the .keras file
-model = keras.models.load_model(os.path.join(SCRIPT_DIR, "cats_dogs_model.keras"))
+model = keras.models.load_model(os.path.join(SCRIPT_DIR, MODEL_FILENAME))
 
 # Scan the 'images' folder and list all image files (jpg, jpeg, png)
 img_files = [f for f in os.listdir(IMAGES_DIR) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]

@@ -15,7 +15,8 @@ import tensorflow as tf
 
 # Define paths and shard size
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(SCRIPT_DIR, "cats_dogs_model.keras")
+# MODEL_PATH = os.path.join(SCRIPT_DIR, "cats_dogs_model.keras")
+MODEL_PATH = os.path.join(SCRIPT_DIR, "cats_dogs_model_fine_tuned.keras")
 OUT_DIR = os.path.join(SCRIPT_DIR, "web_demo", "tfjs_model")
 SHARD_SIZE = 4 * 1024 * 1024  # 4 MB per shard (standard for web delivery)
 
