@@ -70,7 +70,7 @@ function showPreview(dataURL) {
 function preprocess(imgElement) {
   return tf.tidy(() => {
     let t = tf.browser.fromPixels(imgElement).toFloat();
-    t = tf.image.resizeBilinear(t, [IMG_SIZE, IMG_SIZE]);
+    t = tf.image.resizeNearestNeighbor(t, [IMG_SIZE, IMG_SIZE]);
     t = t.div(255.0);
     t = t.expandDims(0);
     return t;

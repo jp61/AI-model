@@ -16,13 +16,10 @@ def load_and_preprocess(img_path):
     """
     Function to prepare a raw image for model prediction.
     """
-    # Decode at native resolution, then bilinear-resize to IMG_SIZE.
-    # image.load_img(target_size=...) uses PIL's nearest-neighbor resampling,
-    # which diverges from training (tf.image.resize default = bilinear) and the
-    # web demo (tf.image.resizeBilinear). The mismatch was skewing predictions.
-    img = image.load_img(img_path)
+    # Load the image from disk and resize it to 150x150
+    img = image.load_img(img_path, target_size=(IMG_SIZE, IMG_SIZE))
+    # Convert the image object into a numerical array (numpy array)
     img_array = image.img_to_array(img)
-    img_array = tf.image.resize(img_array, [IMG_SIZE, IMG_SIZE], method='bilinear').numpy()
     # Normalization: rescale pixel values from 0-255 to 0-1 (matches training logic)
     img_array = img_array / 255.0
     # Expand dimensions: The model expects a batch of images.
