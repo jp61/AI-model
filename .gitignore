@@ -123,6 +123,12 @@ dmypy.json
 *.h5
 *.keras
 
+# Trained model output
+model/
+
+# Node modules (tfjs_sim diagnostic harness)
+node_modules/
+
 # macOS
 .DS_Store
 .AppleDouble

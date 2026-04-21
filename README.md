@@ -22,51 +22,63 @@ pip install .
 
 ## Usage
 
+All commands are run from the repository root. Model files and intermediate artifacts are written to `model/`.
+
 ### 1. Train the model
 
 ```bash
-cd src
-python train.py
+python src/train.py
 ```
 
-This downloads the `cats_vs_dogs` dataset, trains a CNN for 10 epochs, and saves the model as `cats_dogs_model.h5` and `cats_dogs_model.keras`.
+Downloads the `cats_vs_dogs` dataset, trains a CNN with augmentation + dropout + L2 + EarlyStopping, and saves `model/cats_dogs_model.h5` and `model/cats_dogs_model.keras`.
+
+Regularization is controlled by flags (`--augment/--no-augment`, `--dropout`, `--l2`, `--patience`, `--epochs`, `--batch-size`). Run `python src/train.py --help` for the full list, or see [`docs/regularization.md`](docs/regularization.md) for what each flag does, what to expect, and how to troubleshoot.
 
 ### 2. Run Python predictions (optional)
 
-Place test images in `src/images/` and run:
-
 ```bash
-python predict.py
+python src/predict.py src/images/cat2.jpg      # single image
+python src/predict.py src/images/               # whole directory
+python src/predict.py                           # defaults to src/images/
 ```
+
+Prints the predicted label, raw sigmoid output, and confidence for each image.
 
 ### 3. Convert to TensorFlow.js
 
 ```bash
-python convert_to_tfjs.py
+python src/convert_to_tfjs.py
 ```
 
-This converts the trained Keras model into TensorFlow.js Layers format under `web_demo/tfjs_model/` (a `model.json` file and binary weight shards).
+Writes `src/web_demo/model/model.json` plus binary weight shards and `calibration.json`. Everything the browser needs sits next to `app.js`.
 
 ### 4. Launch the web demo
 
+Serve from `src/web_demo/`:
+
 ```bash
-cd web_demo
-python3 -m http.server 8000
+cd src/web_demo && python3 -m http.server 8000
 ```
 
-Open http://localhost:8000 in your browser. Drag and drop an image (or click to browse) to classify it as a cat or dog. All inference runs client-side in the browser.
+Then open http://localhost:8000/ in your browser. Drag and drop an image (or click to browse) to classify it. All inference runs client-side.
 
 ## Project structure
 
 ```
+model/                    # Trained Keras model (gitignored)
+  cats_dogs_model.h5
+  cats_dogs_model.keras
 src/
-  train.py              # Train the CNN
-  predict.py            # Python inference on local images
-  convert_to_tfjs.py    # Convert Keras model to TF.js format
-  images/               # Sample test images
+  train.py                # Train the CNN
+  predict.py              # Python CLI inference
+  convert_to_tfjs.py      # Keras → TF.js converter (outputs to web_demo/model/)
+  images/                 # Sample test images
   web_demo/
-    index.html          # Web UI
-    style.css           # Styling
-    app.js              # Client-side inference logic
-    tfjs_model/         # Generated TF.js model (after conversion)
+    index.html
+    style.css
+    app.js                # Client-side inference
+    model/                # TF.js export (gitignored)
+      model.json
+      calibration.json
+      group1-shard*.bin
 ```
