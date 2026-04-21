@@ -118,6 +118,9 @@ def validate_manifest(model, manifest):
         if not layer.weights:
             continue
         for var_name in expected:
+            # A Conv2D/Dense with use_bias=False legitimately has no bias weight.
+            if var_name == "bias" and not getattr(layer, "use_bias", True):
+                continue
             full = f"{layer.name}/{var_name}"
             if full not in written:
                 missing.append(full)

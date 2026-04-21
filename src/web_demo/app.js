@@ -1,8 +1,10 @@
 const IMG_SIZE = 150;
+const CROP_SIZE = Math.round(IMG_SIZE * 0.875);
 const MODEL_PATH = './model/model.json';
 const CALIBRATION_PATH = './model/calibration.json';
 const EXPECTED_INPUT_SHAPE = [null, IMG_SIZE, IMG_SIZE, 3];
 const EXPECTED_OUTPUT_SHAPE = [null, 1];
+const USE_TTA = true;  // 5-view test-time augmentation, reduces variance on borderline cases
 
 // DOM refs
 const dropZone = document.getElementById('drop-zone');
@@ -161,11 +163,26 @@ function showPreview(dataURL) {
 }
 
 function preprocess(imgElement) {
+  // Returns a single-image batch at IMG_SIZE×IMG_SIZE, [0, 1].
   return tf.tidy(() => {
     let t = tf.browser.fromPixels(imgElement).toFloat();
     t = tf.image.resizeBilinear(t, [IMG_SIZE, IMG_SIZE]);
     t = t.div(255.0);
     return t.expandDims(0);
+  });
+}
+
+function ttaBatch(single) {
+  // Input: [1, H, W, 3]. Output: [5, H, W, 3] — original + hflip + 4 corner crops.
+  return tf.tidy(() => {
+    const base = single.squeeze([0]);                    // [H, W, 3]
+    const flip = tf.reverse(base, [1]);                  // horizontal flip
+    const d = IMG_SIZE - CROP_SIZE;
+    const corners = [[0, 0], [0, d], [d, 0], [d, d]].map(([y, x]) => {
+      const crop = tf.slice(base, [y, x, 0], [CROP_SIZE, CROP_SIZE, 3]);
+      return tf.image.resizeBilinear(crop, [IMG_SIZE, IMG_SIZE]);
+    });
+    return tf.stack([base, flip, ...corners], 0);       // [5, H, W, 3]
   });
 }
 
@@ -188,13 +205,16 @@ async function classify(imgElement) {
   const model = await ensureModel();
 
   const input = preprocess(imgElement);
-  let pred, val, stats;
+  let pred, val, stats, batch;
   try {
     stats = await tensorStats(input);
-    pred = model.predict(input);
-    val = (await pred.data())[0];
+    batch = USE_TTA ? ttaBatch(input) : input;
+    pred = model.predict(batch);
+    const raws = await pred.data();  // Float32Array of length 1 (plain) or 5 (TTA)
+    val = Array.from(raws).reduce((a, b) => a + b, 0) / raws.length;
   } finally {
     input.dispose();
+    if (batch && batch !== input) batch.dispose();
     if (pred) pred.dispose();
   }
 

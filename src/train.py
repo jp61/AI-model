@@ -44,30 +44,39 @@ def build_augmenter():
     ], name="augmenter")
 
 
+def conv_block(filters, reg):
+    # Conv -> BN -> ReLU -> Pool. BN before activation is the Ioffe & Szegedy 2015
+    # convention. All layer types here are registered in @tensorflow/tfjs.
+    return [
+        layers.Conv2D(filters, (3, 3), padding='same', use_bias=False, kernel_regularizer=reg),
+        layers.BatchNormalization(),
+        layers.Activation('relu'),
+        layers.MaxPooling2D(2, 2),
+    ]
+
+
 def build_model(args):
+    """Four-block CNN with GlobalAveragePooling head.
+
+    Replaces the previous Flatten -> Dense(512) transition (~16M params) with
+    GlobalAveragePooling2D -> Dense(1) (~100k params). The old capacity
+    bottleneck was the root cause of overfitting — no amount of augmentation
+    or weight decay could rescue a head with 1000 params per training image.
+    Lin et al. 2013 (Network In Network) first proposed GAP as a structural
+    regularizer; it's now standard in ResNet / MobileNet / EfficientNet.
+    """
     reg = regularizers.l2(args.l2) if args.l2 > 0 else None
 
-    model_layers = [
-        layers.Input(shape=(IMG_SIZE, IMG_SIZE, 3)),
-        layers.Conv2D(32, (3, 3), activation='relu', kernel_regularizer=reg),
-        layers.MaxPooling2D(2, 2),
+    model_layers = [layers.Input(shape=(IMG_SIZE, IMG_SIZE, 3))]
+    for filters in (32, 64, 128, 256):
+        model_layers += conv_block(filters, reg)
 
-        layers.Conv2D(64, (3, 3), activation='relu', kernel_regularizer=reg),
-        layers.MaxPooling2D(2, 2),
-
-        layers.Conv2D(128, (3, 3), activation='relu', kernel_regularizer=reg),
-        layers.MaxPooling2D(2, 2),
-
-        layers.Flatten(),
-    ]
+    model_layers.append(layers.GlobalAveragePooling2D())
 
     if args.dropout > 0:
         model_layers.append(layers.Dropout(args.dropout))
 
-    model_layers += [
-        layers.Dense(512, activation='relu', kernel_regularizer=reg),
-        layers.Dense(1, activation='sigmoid', kernel_regularizer=reg),
-    ]
+    model_layers.append(layers.Dense(1, activation='sigmoid', kernel_regularizer=reg))
 
     return models.Sequential(model_layers)
 
@@ -118,7 +127,10 @@ def main():
             monitor='val_loss', patience=args.patience, restore_best_weights=True,
         ))
 
-    model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
+    # verbose=2 prints one line per epoch instead of a live progress bar.
+    # Progress bars use \r and are token-churn when the log is tailed or read.
+    model.fit(train_ds, validation_data=val_ds, epochs=args.epochs,
+              callbacks=callbacks, verbose=2)
 
     model.save(os.path.join(MODEL_DIR, "cats_dogs_model.h5"))
     model.save(os.path.join(MODEL_DIR, "cats_dogs_model.keras"))

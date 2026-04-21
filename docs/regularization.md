@@ -22,6 +22,12 @@ The "100% Dog" was not a bug in any pipeline stage. The model was legitimately o
 
 Root cause: the model overfit. With ~16M parameters (most in `Dense(512)`) and ~20k training images, no augmentation, no dropout, no weight decay, 10 epochs — the model memorized training data and failed on cat2.jpg, a held-out example that sits near its decision boundary.
 
+### Follow-up finding (2026-04-21): augmentation alone wasn't enough
+
+After adding augmentation + Dropout(0.5) + L2(1e-4) + EarlyStopping, cat2.jpg was still misclassified as Dog at raw sigmoid ~0.744. **Grad-CAM (Selvaraju et al. 2017) on `src/images/`** revealed that for cat1/dog1/dog2 the heatmap correctly lit up on the animal's face, but for cat2.jpg the activation was diffuse across background objects — the model wasn't looking at the cat at all. This pointed to a structural problem, not just insufficient regularization.
+
+The `Flatten → Dense(512)` transition concentrated ~16M of the 19M total params in a single layer with no spatial inductive bias. Input-level regularization (augmentation, L2) could not constrain that many parameters given ~20k training images. **Architectural fix (2026-04-21):** replaced `Flatten → Dense(512)` with `GlobalAveragePooling2D → Dense(1)`, added `BatchNormalization` after each `Conv2D`, and deepened to 4 conv blocks (32→64→128→256). Total params dropped from 19M to ~390k (see `src/train.py:build_model()`). Grad-CAM is available as `src/gradcam.py` for future diagnostics.
+
 ## Industry-standard mitigations
 
 These are the standard tools for image classifiers trained from scratch on modest datasets:
@@ -41,7 +47,7 @@ All four are wired into `src/train.py` and controlled by flags:
 | Flag | Default | What it does | Disable with |
 | --- | --- | --- | --- |
 | `--augment` / `--no-augment` | `--augment` | Applies `RandomFlip("horizontal")`, `RandomRotation(0.1)`, `RandomZoom(0.1)` in the `tf.data` pipeline (not inside the model — see note below). | `--no-augment` |
-| `--dropout FLOAT` | `0.5` | Adds `Dropout(rate)` before `Dense(512)`. | `--dropout 0` |
+| `--dropout FLOAT` | `0.5` | Adds `Dropout(rate)` between `GlobalAveragePooling2D` and the final `Dense(1)`. | `--dropout 0` |
 | `--l2 FLOAT` | `1e-4` | Adds `kernel_regularizer=l2(λ)` to every Conv2D and Dense. | `--l2 0` |
 | `--patience INT` | `3` | `EarlyStopping(val_loss, patience, restore_best_weights=True)`. | `--patience 0` |
 | `--epochs INT` | `30` | Upper bound on epochs. | — |
@@ -51,7 +57,7 @@ All four are wired into `src/train.py` and controlled by flags:
 
 `RandomFlip`, `RandomRotation`, and `RandomZoom` are applied via `train_ds.map(augmenter)` **before** the data reaches the model. They are **not** layers inside the saved `Sequential`.
 
-**Why this matters:** `@tensorflow/tfjs` (the browser runtime) does not register these preprocessing layer classes. If they are baked into the model, `tf.loadLayersModel()` fails with `Unknown layer: RandomFlip`, the browser gets stuck showing "Loading model... 100%", and the only fix is to strip the layers and reconvert. The pipeline-side approach sidesteps this entirely: the exported model is pure Conv/Dense/MaxPool/Dropout/Flatten, which TF.js handles natively. Dropout stays inside the model because it's a no-op at inference and TF.js supports it.
+**Why this matters:** `@tensorflow/tfjs` (the browser runtime) does not register these preprocessing layer classes. If they are baked into the model, `tf.loadLayersModel()` fails with `Unknown layer: RandomFlip`, the browser gets stuck showing "Loading model... 100%", and the only fix is to strip the layers and reconvert. The pipeline-side approach sidesteps this entirely: the exported model is pure Conv/Dense/MaxPool/Dropout/Flatten, which TF.js handles natively. Dropout stays inside the model because it's a no-op at inference and TF.js supports it. BatchNormalization (added 2026-04-21) is also kept inside the model — TF.js registers it, and inference uses the saved moving statistics.
 
 ## Usage
 
@@ -84,8 +90,19 @@ After training, always reconvert and re-verify:
 ```bash
 python src/convert_to_tfjs.py
 python src/predict.py src/images/cat2.jpg
+python src/predict.py src/images/cat2.jpg --tta   # with test-time augmentation
 # then reload the web demo
 ```
+
+## Test-time augmentation (TTA)
+
+Borderline cases — images where the model's raw sigmoid sits near 0.5 — can flip under tiny input perturbations. The standard fix is to average predictions over several augmented views of the same image at inference. Implemented in both `src/predict.py` (`--tta` flag) and `src/web_demo/app.js` (`USE_TTA = true`).
+
+Views: original + horizontal flip + 4 corner crops at 87.5% of the image side, each resized back to `IMG_SIZE`. Five sigmoids are averaged. Reference: Krizhevsky et al. 2012 (AlexNet). TTA is cheap (5× inference cost) and strictly a superset of single-view inference — it does not require retraining. It should never flip a confidently-correct prediction to wrong; if it does, the model is fragile to augmentations it should have learned invariance to, pointing back at the training pipeline.
+
+## Diagnostics: Grad-CAM
+
+`src/gradcam.py` produces side-by-side (original | heatmap overlay) PNGs in `docs/gradcam/` for every image in a directory. The heatmap shows which spatial locations in the last Conv2D layer contributed most to the predicted class (Selvaraju et al. 2017). Use this to answer "is the model looking at the animal or at the background?" — a diffuse, off-subject heatmap is a signal that the learned features are shallow/spurious and no amount of regularization-tuning will help; the architecture or dataset is the bottleneck.
 
 ## What to expect
 

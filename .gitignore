@@ -129,6 +129,9 @@ model/
 # Node modules (tfjs_sim diagnostic harness)
 node_modules/
 
+# Claude Code local metadata
+.claude/
+
 # macOS
 .DS_Store
 .AppleDouble
