@@ -57,6 +57,14 @@ def build_tfjs_topology(model):
 
         cfg.pop("quantization_config", None)
 
+        # Regularizers contribute only to the training loss; at inference they
+        # are a no-op. Keras 3 serializes them as class_name "L2" / "L1" while
+        # @tensorflow/tfjs's registry expects lowercase "l2" / "l1". Stripping
+        # them entirely sidesteps the naming mismatch and keeps the exported
+        # model pure inference.
+        for reg_key in ("kernel_regularizer", "bias_regularizer", "activity_regularizer"):
+            cfg.pop(reg_key, None)
+
         if ltype == "InputLayer":
             continue
 
