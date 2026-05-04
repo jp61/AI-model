@@ -66,14 +66,16 @@ function showPreview(dataURL) {
   });
 }
 
-// Preprocessing (identical to original main.js)
 function preprocess(imgElement) {
+  const canvas = document.createElement('canvas');
+  canvas.width = imgElement.naturalWidth;
+  canvas.height = imgElement.naturalHeight;
+  canvas.getContext('2d').drawImage(imgElement, 0, 0);
   return tf.tidy(() => {
-    let t = tf.browser.fromPixels(imgElement).toFloat();
-    t = tf.image.resizeNearestNeighbor(t, [IMG_SIZE, IMG_SIZE]);
+    let t = tf.browser.fromPixels(canvas).toFloat();
+    t = tf.image.resizeBilinear(t, [IMG_SIZE, IMG_SIZE], false, true);
     t = t.div(255.0);
-    t = t.expandDims(0);
-    return t;
+    return t.expandDims(0);
   });
 }
 
