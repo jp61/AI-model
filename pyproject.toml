@@ -4,8 +4,9 @@ version = "0.1.0"
 description = "Train and use an AI model for cats vs dogs classification"
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "tensorflow>=2.15",
+    "tensorflow==2.16.1",
     "tensorflow-datasets>=4.9",
+    "protobuf==4.25.9",
     "numpy>=1.24",
     "matplotlib>=3.7",
     "importlib-resources>=6.0",
