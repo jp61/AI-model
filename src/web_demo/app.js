@@ -164,8 +164,16 @@ function showPreview(dataURL) {
 
 function preprocess(imgElement) {
   // Returns a single-image batch at IMG_SIZE×IMG_SIZE, [0, 1].
+  // Draw at naturalWidth/Height onto an off-DOM canvas first, because
+  // tf.browser.fromPixels(<img>) samples at the rendered size, and CSS
+  // (max-height: 300px) otherwise downsamples the image before tfjs sees it.
+  // That divergence from Python's full-res → bilinear path flips borderline cases.
+  const canvas = document.createElement('canvas');
+  canvas.width = imgElement.naturalWidth;
+  canvas.height = imgElement.naturalHeight;
+  canvas.getContext('2d').drawImage(imgElement, 0, 0);
   return tf.tidy(() => {
-    let t = tf.browser.fromPixels(imgElement).toFloat();
+    let t = tf.browser.fromPixels(canvas).toFloat();
     t = tf.image.resizeBilinear(t, [IMG_SIZE, IMG_SIZE]);
     t = t.div(255.0);
     return t.expandDims(0);
